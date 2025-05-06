@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Briscola Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            width: 100%;
+            max-width: 900px;
+        }
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        .game-info h3, .game-info .timer, .game-info #scores {
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+        .timer { font-size: 1.8rem; font-weight: bold; color: #ffc107; }
+        #scores span { margin: 0 10px; font-size: 1.1rem;}
+
+        .card-display-area {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .main-game-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .side-panel {
+            width: 250px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .side-panel h5 {
+            color: #fff;
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            padding-bottom: 5px;
+        }
+
+        .briscola-card-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .briscola-card-container h5 { color: #fff; margin-bottom: 5px; }
+        #briscola-card .card-img {
+            border: 3px solid #ffc107; /* Gold border for Briscola */
+            transform: scale(1.1);
+        }
+
+        .card-table {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 150px; /* Ensure space for cards */
+            gap: 15px;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        .hand {
+            display: flex;
+            justify-content: center;
+            gap: 10px; /* Spacing between cards in hand */
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        .card-img {
+            width: 90px; /* Slightly larger cards */
+            height: 140px;
+            border-radius: 10px; /* More rounded corners */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            background: #fff;
+            color: #333; /* Card text color */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem; /* Larger rank/suit */
+            font-weight: bold;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card-img:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        .card-img.selected {
+            border: 3px solid #007bff; /* Bootstrap primary blue for selected */
+            transform: translateY(-5px) scale(1.1);
+        }
+        .card-img.played { /* Style for cards on the table */
+            cursor: default;
+            transform: scale(0.95);
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+
+        #my-won-cards-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); /* Responsive grid for won cards */
+            gap: 5px;
+            height: 250px; /* Adjust as needed */
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.1);
+        }
+        #my-won-cards-display .card-img { /* Smaller display for won cards */
+            width: 60px;
+            height: 90px;
+            font-size: 0.8rem;
+            cursor: default;
+        }
+        #my-won-cards-display .card-img:hover {
+            transform: none; /* No hover effect for won cards */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Animations */
+        @keyframes cardFlyIn {
+            from { transform: translateY(-100px) rotateX(-90deg); opacity: 0; }
+            to { transform: translateY(0) rotateX(0deg); opacity: 1; }
+        }
+        .hand .card-img {
+            animation: cardFlyIn 0.5s ease-out forwards;
+        }
+
+        @keyframes cardPlay {
+            from { transform: scale(1.1) rotate(0deg); }
+            to { transform: scale(0.95) rotate(5deg); } /* Example animation */
+        }
+        .card-table .card-img {
+            animation: cardPlay 0.3s ease-in-out;
+        }
+
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <div class="game-info">
+        <h3>Game Code: <span id="game-code">{{ code }}</span></h3>
+        <div id="scores">
+            <span>Your Score: <span id="my-score">0</span></span> |
+            <span>Opponent Score: <span id="opponent-score">0</span></span>
+        </div>
+        <div class="timer" id="timer">30</div>
+    </div>
+
+    <div class="card-display-area">
+        <div class="main-game-area">
+            <div class="briscola-card-container">
+                <h5>Briscola</h5>
+                <div id="briscola-card"></div>
+            </div>
+            <div class="card-table" id="table-cards">
+                <!-- Cards played by players will appear here -->
+            </div>
+            <div class="hand" id="hand">
+                <!-- Player's hand will appear here -->
+            </div>
+            <div id="status" class="mt-4">Waiting for game to start...</div>
+        </div>
+
+        <div class="side-panel">
+            <h5>My Won Cards (<span id="my-won-cards-count">0</span>)</h5>
+            <div id="my-won-cards-display">
+                <!-- Won cards will be displayed here -->
+            </div>
+            <h5 class="mt-3">Deck: <span id="remaining-cards">40</span> cards left</h5>
+        </div>
+    </div>
+</div>
+<script>
+const socket = io();
+const code = "{{ code }}";
+let selectedCard = null;
+let timerInterval = null;
+
+function renderCard(card, selectable=false, isPlayed=false) {
+    if (!card) return '';
+    let classes = 'card-img';
+    if (selectable) classes += ' selectable';
+    if (isPlayed) classes += ' played'; // Add 'played' class for cards on table
+
+    // Simple suit symbols for better visual distinction
+    let suitSymbol = '';
+    switch(card.suit) {
+        case 'Cups': suitSymbol = '🏆'; break; // Example: Using emoji
+        case 'Coins': suitSymbol = '💰'; break;
+        case 'Swords': suitSymbol = '⚔️'; break;
+        case 'Clubs': suitSymbol = '♣️'; break; // Standard club symbol
+        default: suitSymbol = card.suit.substring(0,1); // Fallback to first letter
+    }
+
+    return `<div class="${classes}" data-suit="${card.suit}" data-rank="${card.rank}" title="${card.rank} of ${card.suit}">
+        <div style="font-size: 2rem;">${card.rank}</div>
+        <div style="font-size: 1.5rem;">${suitSymbol}</div>
+    </div>`;
+}
+
+function renderHand(hand, canPlay) {
+    const handDiv = document.getElementById('hand');
+    handDiv.innerHTML = hand.map((card, index) => {
+        // Apply animation delay to each card
+        const cardElement = renderCard(card, canPlay);
+        // Wrap in a div to apply animation if needed or directly style cardElement
+        return `<div style="animation-delay: ${index * 0.1}s">${cardElement}</div>`;
+    }).join('');
+
+    if (canPlay) {
+        handDiv.querySelectorAll('.card-img.selectable').forEach(el => {
+            el.onclick = () => {
+                handDiv.querySelectorAll('.card-img').forEach(e => e.classList.remove('selected'));
+                el.classList.add('selected');
+                selectedCard = {suit: el.dataset.suit, rank: el.dataset.rank};
+                socket.emit('play_card', {code, card: selectedCard});
+            };
+        });
+    }
+}
+
+function renderTable(table) {
+    const tableDiv = document.getElementById('table-cards');
+    // Ensure that table is an array and each item has a card property
+    if (Array.isArray(table)) {
+        tableDiv.innerHTML = table.map(item => item && item.card ? renderCard(item.card, false, true) : '').join(''); // Pass isPlayed=true
+    } else {
+        tableDiv.innerHTML = ''; // Clear table if data is not as expected
+    }
+}
+
+function renderBriscola(card) {
+    const briscolaDiv = document.getElementById('briscola-card');
+    briscolaDiv.innerHTML = card ? renderCard(card, false, true) : ''; // Briscola is also 'played' visually
+}
+
+function renderWonCards(cards) {
+    const wonCardsDiv = document.getElementById('my-won-cards-display');
+    const wonCardsCountSpan = document.getElementById('my-won-cards-count');
+    if (Array.isArray(cards)) {
+        wonCardsDiv.innerHTML = cards.map(card => renderCard(card, false, true)).join(''); // Won cards are 'played'
+        wonCardsCountSpan.textContent = cards.length;
+    } else {
+        wonCardsDiv.innerHTML = '';
+        wonCardsCountSpan.textContent = 0;
+    }
+}
+
+function updateTimer(seconds) {
+    const timerDiv = document.getElementById('timer');
+    timerDiv.textContent = seconds;
+}
+
+socket.on('game_state', data => {
+    renderHand(data.hand, data.can_play);
+    renderTable(data.table);
+    renderBriscola(data.briscola);
+    renderWonCards(data.my_won_cards);
+    document.getElementById('status').textContent = data.status;
+    document.getElementById('my-score').textContent = data.my_score;
+    document.getElementById('opponent-score').textContent = data.opponent_score;
+    document.getElementById('remaining-cards').textContent = data.remaining_cards;
+    if (timerInterval) clearInterval(timerInterval);
+    let t = data.timer;
+    updateTimer(t);
+    timerInterval = setInterval(() => {
+        t--;
+        updateTimer(t);
+        if (t <= 0) clearInterval(timerInterval);
+    }, 1000);
+});
+
+socket.emit('join_game', {code});
+</script>
+</body>
+</html>
